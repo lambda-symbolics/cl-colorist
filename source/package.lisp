@@ -16,8 +16,13 @@
    #:color-kind
    #:color-value
    #:color-fallback
+   #:color-indexed-fallback
+   #:color-component
+   #:rgb-triple
    #:basic-color
    #:indexed-color
+   #:rgb-color
+   #:hex-color
 
    ;; Styles and rendering
    #:style

@@ -12,6 +12,12 @@
      :bold t)
   "A read-time STYLE that requires a load form when this file is compiled.")
 
+(defparameter *compiled-rgb-style*
+  #.(make-style
+     :foreground (hex-color "#fce04d")
+     :background (rgb-color 25 60 184 :fallback (indexed-color 19 :fallback :blue)))
+  "A read-time STYLE with 24-bit colors and both derived and explicit fallbacks.")
+
 (defun check-equal (expected actual)
   "Assert that EXPECTED and ACTUAL are EQUAL."
   (incf *check-count*)
@@ -71,6 +77,65 @@
   (check-signals-error (lambda () (indexed-color 256)))
   (check-signals-error (lambda () (indexed-color 20 :fallback :orange))))
 
+(defun test-rgb-colors ()
+  "Check 24-bit colors, derived and explicit fallbacks, and hex parsing."
+  (let ((yellow (hex-color "#fce04d"))
+        (blue (hex-color "193cb8")))
+    (check-equal :rgb (color-kind yellow))
+    (check-equal '(252 224 77) (color-value yellow))
+    (check-equal 221 (color-indexed-fallback yellow))
+    (check-equal :bright-yellow (color-fallback yellow))
+    (check-equal 25 (color-indexed-fallback blue))
+    (check-equal :blue (color-fallback blue))
+    (check-equal (escape-sequence "[38;2;252;224;77m")
+                 (sgr-sequence (make-style :foreground yellow)
+                               :level :truecolor))
+    (check-equal (escape-sequence "[48;2;25;60;184m")
+                 (sgr-sequence (make-style :background blue)
+                               :level :truecolor))
+    (check-equal (escape-sequence "[38;5;221m")
+                 (sgr-sequence (make-style :foreground yellow)
+                               :level :indexed))
+    (check-equal (escape-sequence "[93m")
+                 (sgr-sequence (make-style :foreground yellow)
+                               :level :basic))
+    (check-equal "" (sgr-sequence (make-style :foreground yellow)
+                                  :level :none)))
+  (check-equal (escape-sequence "[38;5;114m")
+               (sgr-sequence (make-style :foreground (indexed-color 114))
+                             :level :truecolor))
+  (check-equal (escape-sequence "[44m")
+               (sgr-sequence (make-style :background :blue)
+                             :level :truecolor))
+  (let ((explicit (rgb-color 25 60 184
+                             :fallback (indexed-color 19 :fallback :bright-blue)))
+        (named (rgb-color 1 2 3 :fallback :red))
+        (gray (rgb-color 128 128 128))
+        (black (rgb-color 0 0 0))
+        (white (rgb-color 255 255 255)))
+    (check-equal 19 (color-indexed-fallback explicit))
+    (check-equal :bright-blue (color-fallback explicit))
+    (check-equal 16 (color-indexed-fallback named))
+    (check-equal :red (color-fallback named))
+    (check-equal 244 (color-indexed-fallback gray))
+    (check-equal :bright-black (color-fallback gray))
+    (check-equal 16 (color-indexed-fallback black))
+    (check-equal 231 (color-indexed-fallback white))
+    (check-equal :bright-white (color-fallback white)))
+  (check-equal (escape-sequence "[38;2;252;224;77;48;2;25;60;184m")
+               (sgr-sequence *compiled-rgb-style* :level :truecolor))
+  (check-equal (escape-sequence "[38;5;221;48;5;19m")
+               (sgr-sequence *compiled-rgb-style* :level :indexed))
+  (check-equal (escape-sequence "[93;44m")
+               (sgr-sequence *compiled-rgb-style* :level :basic))
+  (check-signals-error (lambda () (rgb-color 256 0 0)))
+  (check-signals-error (lambda () (rgb-color 0 -1 0)))
+  (check-signals-error (lambda () (rgb-color 0 0 0 :fallback :orange)))
+  (check-signals-error (lambda () (hex-color "#12")))
+  (check-signals-error (lambda () (hex-color "zzzzzz")))
+  (check-signals-error (lambda () (hex-color "##193cb8")))
+  (check-signals-error (lambda () (hex-color "#193cb8ff"))))
+
 (defun test-style-rendering ()
   "Check attributes, reset behavior and one-shot rendering."
   (check-equal (escape-sequence "[1;38;5;114;48;5;236m")
@@ -117,10 +182,18 @@
     (check-equal :indexed
                  (terminal-color-level
                   :getenv (getter '(("TERM" . "xterm-256color")))))
-    (check-equal :indexed
+    (check-equal :truecolor
                  (terminal-color-level
                   :getenv (getter '(("TERM" . "xterm")
                                     ("COLORTERM" . "truecolor")))))
+    (check-equal :truecolor
+                 (terminal-color-level
+                  :getenv (getter '(("TERM" . "xterm-256color")
+                                    ("COLORTERM" . "24bit")))))
+    (check-equal :indexed
+                 (terminal-color-level
+                  :getenv (getter '(("TERM" . "xterm")
+                                    ("COLORTERM" . "256")))))
     (check-equal :basic
                  (terminal-color-level
                   :getenv (getter '(("TERM" . "xterm"))))))
@@ -175,6 +248,7 @@
   (setf *check-count* 0)
   (test-basic-colors)
   (test-indexed-colors)
+  (test-rgb-colors)
   (test-style-rendering)
   (test-color-levels)
   (test-ansi-parsing)

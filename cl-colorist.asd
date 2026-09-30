@@ -2,7 +2,7 @@
   :description "Small, capability-aware ANSI text styling."
   :author "Lukáš Hozda"
   :license "ISC"
-  :version "0.1.0"
+  :version "0.2.0"
   :serial t
   :components ((:module "source"
                 :serial t

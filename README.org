@@ -1,8 +1,9 @@
 #+title: cl-colorist
 
 =cl-colorist= styles terminal text. It covers the named ANSI 16-color palette,
-xterm-256 colors with basic-color fallbacks, common SGR attributes, terminal
-capability detection, and ANSI-aware string handling. It has no dependencies.
+xterm-256 colors with basic-color fallbacks, 24-bit colors with derived
+fallbacks, common SGR attributes, terminal capability detection, and
+ANSI-aware string handling. It has no dependencies.
 
 * Use
 
@@ -27,6 +28,20 @@ An indexed color carries a basic fallback:
 (colorist:colorize " indexed when possible " *status-style*)
 #+end_src
 
+A 24-bit color renders exactly on a true-color terminal and degrades on
+lesser ones. Without an explicit fallback, the closest xterm-256 index and
+basic color are derived from the channels:
+
+#+begin_src lisp
+(colorist:hex-color "#fce04d")            ; index 221, :bright-yellow
+(colorist:rgb-color 25 60 184)            ; index 25, :blue
+(colorist:rgb-color 25 60 184
+                    :fallback (colorist:indexed-color 19 :fallback :blue))
+#+end_src
+
+An indexed fallback supplies both lesser levels; a basic name fixes only the
+basic level and leaves the index derived.
+
 Reusable styles take foreground and background plus:
 
 - =:bold=
@@ -49,13 +64,13 @@ The 16 basic names are:
 
 * Capability selection
 
-=colorist:terminal-color-level= returns =:none=, =:basic=, or =:indexed=. It
-honors:
+=colorist:terminal-color-level= returns =:none=, =:basic=, =:indexed=, or
+=:truecolor=. It honors:
 
 - =NO_COLOR=
 - =TERM=dumb=
-- =TERM=*-256color=
-- true-color =COLORTERM= values, treated as indexed-capable
+- true-color =COLORTERM= values (=truecolor=, =24bit=)
+- =TERM=*-256color= and 256-color =COLORTERM= values
 
 Bind =colorist:*color-level*= to override detection for a dynamic scope:
 

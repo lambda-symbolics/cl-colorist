@@ -6,14 +6,17 @@
                 #:basic-color
                 #:basic-color-names
                 #:color-fallback
+                #:color-indexed-fallback
                 #:color-kind
                 #:color-value
                 #:colorize
                 #:effective-color-level
+                #:hex-color
                 #:indexed-color
                 #:make-style
                 #:paint
                 #:reset-sequence
+                #:rgb-color
                 #:sgr-sequence
                 #:strip-ansi
                 #:terminal-color-level

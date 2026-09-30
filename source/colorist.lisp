@@ -6,8 +6,8 @@
 ;;;; -- Capabilities --
 
 (deftype color-level ()
-  "The amount of ANSI color understood by a terminal."
-  '(member :none :basic :indexed))
+  "The amount of ANSI color understood by a terminal, in increasing order."
+  '(member :none :basic :indexed :truecolor))
 
 (defparameter *color-level* nil
   "Color-level override, or NIL to inspect the process environment.")
@@ -29,10 +29,10 @@
   "Infer a COLOR-LEVEL by calling GETENV with environment variable names.
 
 The presence of NO_COLOR disables color.  TERM=dumb also disables it.  A
-256-color TERM or a true-color COLORTERM selects :INDEXED, because indexed
-color is the richest format this library emits.  Other environments select
-:BASIC.  Supplying GETENV makes capability decisions straightforward to test
-or embed in an unusual environment."
+true-color COLORTERM selects :TRUECOLOR.  A 256-color TERM or COLORTERM
+selects :INDEXED.  Other environments select :BASIC.  Supplying GETENV makes
+capability decisions straightforward to test or embed in an unusual
+environment."
   (let ((no-color (funcall getenv "NO_COLOR"))
         (term      (funcall getenv "TERM"))
         (colorterm (funcall getenv "COLORTERM")))
@@ -40,9 +40,10 @@ or embed in an unusual environment."
            :none)
           ((and term (string-equal term "dumb"))
            :none)
+          ((or (colorist--contains-p "truecolor" colorterm)
+               (colorist--contains-p "24bit" colorterm))
+           :truecolor)
           ((or (colorist--contains-p "256color" term)
-               (colorist--contains-p "truecolor" colorterm)
-               (colorist--contains-p "24bit" colorterm)
                (colorist--contains-p "256" colorterm))
            :indexed)
           (t
@@ -97,26 +98,44 @@ NIL means that no explicit level was supplied."
     :bright-white)
   "The basic ANSI colors in SGR palette order.")
 
+(deftype color-component ()
+  "One 8-bit sRGB channel value."
+  '(integer 0 255))
+
+(deftype rgb-triple ()
+  "A list of exactly three 8-bit sRGB channel values."
+  '(cons color-component (cons color-component (cons color-component null))))
+
 (defstruct (color
-            (:constructor color--create (kind value fallback))
+            (:constructor color--create (kind value fallback indexed-fallback))
             (:predicate color-p)
             (:copier nil))
-  "A validated basic or indexed terminal color.
+  "A validated basic, indexed, or 24-bit terminal color.
 
-KIND is :BASIC or :INDEXED.  VALUE is a basic color name or an xterm palette
-index.  FALLBACK is the basic color name used when an indexed color is
-rendered for a basic terminal."
-  (kind     :basic :type (member :basic :indexed) :read-only t)
-  (value    :white :type (or basic-color-name (integer 0 255)) :read-only t)
-  (fallback nil :type (or null basic-color-name) :read-only t))
+KIND is :BASIC, :INDEXED, or :RGB.  VALUE is a basic color name, an xterm
+palette index, or an RGB-TRIPLE.  FALLBACK is the basic color name used when
+a richer color is rendered for a basic terminal.  INDEXED-FALLBACK is the
+xterm palette index used when an RGB color is rendered for an indexed
+terminal."
+  (kind             :basic :type (member :basic :indexed :rgb) :read-only t)
+  (value            :white :type (or basic-color-name (integer 0 255) rgb-triple)
+                    :read-only t)
+  (fallback         nil :type (or null basic-color-name) :read-only t)
+  (indexed-fallback nil :type (or null (integer 0 255)) :read-only t))
 
 (defun colorist--color-load-form (color)
   "Return a form that reconstructs COLOR through its validated constructor."
   (when color
-    (if (eq (color-kind color) :basic)
-        `(basic-color ',(color-value color))
-        `(indexed-color ,(color-value color)
-                        :fallback ',(color-fallback color)))))
+    (ecase (color-kind color)
+      (:basic
+       `(basic-color ',(color-value color)))
+      (:indexed
+       `(indexed-color ,(color-value color)
+                       :fallback ',(color-fallback color)))
+      (:rgb
+       `(rgb-color ,@(color-value color)
+                   :fallback (indexed-color ,(color-indexed-fallback color)
+                                            :fallback ',(color-fallback color)))))))
 
 (defmethod make-load-form ((color color) &optional environment)
   "Return a portable creation form for immutable COLOR."
@@ -130,7 +149,7 @@ rendered for a basic terminal."
 (defun basic-color (name)
   "Return a COLOR for basic ANSI color NAME."
   (check-type name basic-color-name)
-  (color--create :basic name nil))
+  (color--create :basic name nil nil))
 
 (defun colorist--basic-color-name (designator)
   "Return the basic color name represented by DESIGNATOR."
@@ -155,7 +174,130 @@ rendered for a basic terminal."
 
 FALLBACK may be a basic color name or the result of BASIC-COLOR."
   (check-type index (integer 0 255))
-  (color--create :indexed index (colorist--basic-color-name fallback)))
+  (color--create :indexed index (colorist--basic-color-name fallback) nil))
+
+(defparameter +basic-color-values+
+  '((:black 0 0 0)
+    (:red 205 0 0)
+    (:green 0 205 0)
+    (:yellow 205 205 0)
+    (:blue 0 0 238)
+    (:magenta 205 0 205)
+    (:cyan 0 205 205)
+    (:white 229 229 229)
+    (:bright-black 127 127 127)
+    (:bright-red 255 0 0)
+    (:bright-green 0 255 0)
+    (:bright-yellow 255 255 0)
+    (:bright-blue 92 92 255)
+    (:bright-magenta 255 0 255)
+    (:bright-cyan 0 255 255)
+    (:bright-white 255 255 255))
+  "Representative sRGB values of the basic colors, from xterm's defaults.")
+
+(defparameter +cube-levels+ '(0 95 135 175 215 255)
+  "The channel values of the xterm-256 color cube, indices 16 to 231.")
+
+(defun colorist--distance (red green blue other-red other-green other-blue)
+  "Return the squared Euclidean distance between two sRGB triples."
+  (+ (expt (- red other-red) 2)
+     (expt (- green other-green) 2)
+     (expt (- blue other-blue) 2)))
+
+(defun colorist--nearest-basic-color (red green blue)
+  "Return the basic color name closest to an sRGB triple."
+  (loop with best-name = :white
+        with best-distance = nil
+        for (name other-red other-green other-blue) in +basic-color-values+
+        for distance = (colorist--distance red green blue
+                                           other-red other-green other-blue)
+        when (or (null best-distance) (< distance best-distance))
+          do (setf best-name name
+                   best-distance distance)
+        finally (return best-name)))
+
+(defun colorist--nearest-cube-level (component)
+  "Return the position in +CUBE-LEVELS+ closest to channel COMPONENT."
+  (loop with best-position = 0
+        with best-distance = nil
+        for level in +cube-levels+
+        for position from 0
+        for distance = (abs (- component level))
+        when (or (null best-distance) (< distance best-distance))
+          do (setf best-position position
+                   best-distance distance)
+        finally (return best-position)))
+
+(defun colorist--nearest-indexed-color (red green blue)
+  "Return the xterm-256 index closest to an sRGB triple.
+
+Both the 6x6x6 color cube and the 24-step gray ramp are candidates; the
+sixteen system colors are skipped because terminals redefine them."
+  (let* ((red-position (colorist--nearest-cube-level red))
+         (green-position (colorist--nearest-cube-level green))
+         (blue-position (colorist--nearest-cube-level blue))
+         (cube-index (+ 16 (* 36 red-position) (* 6 green-position) blue-position))
+         (cube-distance (colorist--distance red green blue
+                                            (nth red-position +cube-levels+)
+                                            (nth green-position +cube-levels+)
+                                            (nth blue-position +cube-levels+)))
+         (gray-step (max 0 (min 23 (round (- (/ (+ red green blue) 3) 8) 10))))
+         (gray-value (+ 8 (* 10 gray-step)))
+         (gray-distance (colorist--distance red green blue
+                                            gray-value gray-value gray-value)))
+    (if (< gray-distance cube-distance)
+        (+ 232 gray-step)
+        cube-index)))
+
+(defun rgb-color (red green blue &key fallback)
+  "Return a 24-bit color from sRGB channels with fallbacks for lesser terminals.
+
+FALLBACK may be a basic color name, the result of BASIC-COLOR, or an indexed
+color, which supplies both the xterm-256 and basic fallbacks.  Without it,
+the closest xterm-256 index and basic color are derived from the channels."
+  (check-type red color-component)
+  (check-type green color-component)
+  (check-type blue color-component)
+  (multiple-value-bind (indexed-fallback basic-fallback)
+      (cond ((null fallback)
+             (values (colorist--nearest-indexed-color red green blue)
+                     (colorist--nearest-basic-color red green blue)))
+            ((and (color-p fallback) (eq (color-kind fallback) :indexed))
+             (values (color-value fallback) (color-fallback fallback)))
+            (t
+             (values (colorist--nearest-indexed-color red green blue)
+                     (colorist--basic-color-name fallback))))
+    (color--create :rgb (list red green blue) basic-fallback indexed-fallback)))
+
+(defun hex-color (string &key fallback)
+  "Return the RGB-COLOR written as six hexadecimal digits in STRING.
+
+A leading number sign is permitted, as in \"#193cb8\".  FALLBACK is passed to
+RGB-COLOR."
+  (check-type string string)
+  (let ((digits (string-left-trim "#" string)))
+    (unless (and (= (length digits) 6)
+                 (= (length string) (+ (length digits)
+                                       (if (and (plusp (length string))
+                                                (char= (char string 0) #\#))
+                                           1
+                                           0)))
+                 (every (lambda (character) (digit-char-p character 16)) digits))
+      (error 'type-error
+             :datum string
+             :expected-type '(satisfies colorist--hex-color-string-p)))
+    (rgb-color (parse-integer digits :start 0 :end 2 :radix 16)
+               (parse-integer digits :start 2 :end 4 :radix 16)
+               (parse-integer digits :start 4 :end 6 :radix 16)
+               :fallback fallback)))
+
+(defun colorist--hex-color-string-p (object)
+  "Return true when OBJECT is a six-digit hexadecimal color string."
+  (and (stringp object)
+       (let ((digits (string-left-trim "#" object)))
+         (and (= (length digits) 6)
+              (<= (length object) 7)
+              (every (lambda (character) (digit-char-p character 16)) digits)))))
 
 (defun colorist--color (designator)
   "Coerce a basic color name or COLOR DESIGNATOR to a COLOR."
@@ -193,9 +335,21 @@ FALLBACK may be a basic color name or the result of BASIC-COLOR."
                 (color-fallback color))
             background-p)))
     (:indexed
-     (if (eq (color-kind color) :indexed)
-         (list (if background-p 48 38) 5 (color-value color))
-         (list (colorist--basic-sgr-code (color-value color) background-p))))))
+     (ecase (color-kind color)
+       (:basic
+        (list (colorist--basic-sgr-code (color-value color) background-p)))
+       (:indexed
+        (list (if background-p 48 38) 5 (color-value color)))
+       (:rgb
+        (list (if background-p 48 38) 5 (color-indexed-fallback color)))))
+    (:truecolor
+     (ecase (color-kind color)
+       (:basic
+        (list (colorist--basic-sgr-code (color-value color) background-p)))
+       (:indexed
+        (list (if background-p 48 38) 5 (color-value color)))
+       (:rgb
+        (list* (if background-p 48 38) 2 (color-value color)))))))
 
 
 ;;;; -- Styles and rendering --
