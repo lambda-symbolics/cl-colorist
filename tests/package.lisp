@@ -8,6 +8,7 @@
                 #:color-fallback
                 #:color-indexed-fallback
                 #:color-kind
+                #:color-type-error
                 #:color-value
                 #:colorize
                 #:effective-color-level

@@ -159,7 +159,7 @@ terminal."
               (eq (color-kind designator) :basic))
          (color-value designator))
         (t
-         (error 'type-error
+         (error 'color-type-error
                 :datum designator
                 :expected-type '(or basic-color-name
                                     (satisfies colorist--basic-color-p))))))
@@ -282,7 +282,7 @@ RGB-COLOR."
                                            1
                                            0)))
                  (every (lambda (character) (digit-char-p character 16)) digits))
-      (error 'type-error
+      (error 'color-type-error
              :datum string
              :expected-type '(satisfies colorist--hex-color-string-p)))
     (rgb-color (parse-integer digits :start 0 :end 2 :radix 16)
@@ -305,14 +305,14 @@ RGB-COLOR."
         ((typep designator 'basic-color-name)
          (basic-color designator))
         (t
-         (error 'type-error
+         (error 'color-type-error
                 :datum designator
                 :expected-type '(or color basic-color-name)))))
 
 (defun colorist--basic-color-index (name)
   "Return NAME's zero-based position in the basic ANSI palette."
   (or (position name +basic-color-names+)
-      (error 'type-error :datum name :expected-type 'basic-color-name)))
+      (error 'color-type-error :datum name :expected-type 'basic-color-name)))
 
 (defun colorist--basic-sgr-code (name background-p)
   "Return the basic SGR code for color NAME and destination BACKGROUND-P."
@@ -577,3 +577,18 @@ presentation has been removed."
                  (incf count)
                  (incf index)))
         finally (return count)))
+
+
+;;;; -- Conditions --
+
+(define-condition color-type-error (type-error)
+  ()
+  (:report (lambda (condition stream)
+             (format stream "~S is not a valid color value; expected ~S."
+                     (type-error-datum condition)
+                     (type-error-expected-type condition))))
+  (:documentation
+   "A color, basic color name, or hex color string was invalid.
+
+The datum is the rejected value and the expected type describes the values
+the caller could have passed."))

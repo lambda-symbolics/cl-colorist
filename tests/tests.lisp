@@ -24,12 +24,14 @@
   (unless (equal expected actual)
     (error "Expected ~S, got ~S." expected actual)))
 
-(defun check-signals-error (function)
-  "Assert that calling FUNCTION signals an ERROR."
+(defun check-signals-error (function &key (type 'error))
+  "Assert that calling FUNCTION signals a condition of TYPE."
   (incf *check-count*)
   (let ((signaled-p nil))
     (handler-case (funcall function)
-      (error ()
+      (error (condition)
+        (unless (typep condition type)
+          (error "Expected ~S, got ~S." type condition))
         (setf signaled-p t)))
     (unless signaled-p
       (error "Expected an error, but the call returned."))))
@@ -75,7 +77,8 @@
                   :level :indexed)))
   (check-signals-error (lambda () (indexed-color -1)))
   (check-signals-error (lambda () (indexed-color 256)))
-  (check-signals-error (lambda () (indexed-color 20 :fallback :orange))))
+  (check-signals-error (lambda () (indexed-color 20 :fallback :orange))
+                       :type 'color-type-error))
 
 (defun test-rgb-colors ()
   "Check 24-bit colors, derived and explicit fallbacks, and hex parsing."
@@ -130,11 +133,11 @@
                (sgr-sequence *compiled-rgb-style* :level :basic))
   (check-signals-error (lambda () (rgb-color 256 0 0)))
   (check-signals-error (lambda () (rgb-color 0 -1 0)))
-  (check-signals-error (lambda () (rgb-color 0 0 0 :fallback :orange)))
-  (check-signals-error (lambda () (hex-color "#12")))
-  (check-signals-error (lambda () (hex-color "zzzzzz")))
-  (check-signals-error (lambda () (hex-color "##193cb8")))
-  (check-signals-error (lambda () (hex-color "#193cb8ff"))))
+  (check-signals-error (lambda () (rgb-color 0 0 0 :fallback :orange))
+                       :type 'color-type-error)
+  (dolist (string '("#12" "zzzzzz" "##193cb8" "#193cb8ff"))
+    (check-signals-error (lambda () (hex-color string))
+                         :type 'color-type-error)))
 
 (defun test-style-rendering ()
   "Check attributes, reset behavior and one-shot rendering."
@@ -165,7 +168,8 @@
                (paint "error" :foreground :red :level :basic :reset nil))
   (check-equal "plain" (paint "plain" :foreground :red :level :none))
   (check-signals-error (lambda () (make-style :bold t :faint t)))
-  (check-signals-error (lambda () (make-style :foreground :orange))))
+  (check-signals-error (lambda () (make-style :foreground :orange))
+                       :type 'color-type-error))
 
 (defun test-color-levels ()
   "Check environment capability detection and dynamic overrides."

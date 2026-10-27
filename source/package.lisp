@@ -43,7 +43,10 @@
    ;; ANSI-aware text
    #:ansi-control-end
    #:strip-ansi
-   #:visible-length)
+   #:visible-length
+
+   ;; Conditions
+   #:color-type-error)
   (:documentation
    "Capability-aware ANSI colors, text styles and escape-free text parsing."))
 
