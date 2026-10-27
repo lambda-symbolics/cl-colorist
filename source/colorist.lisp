@@ -472,7 +472,7 @@ unchanged when styling is disabled or STYLE has no effective attributes."
 
 ;;;; -- ANSI-aware text --
 
-(defconstant +escape-character+ (code-char 27)
+(defparameter +escape-character+ (code-char 27)
   "The ASCII escape character.")
 
 (defun colorist--skip-csi (string start)
