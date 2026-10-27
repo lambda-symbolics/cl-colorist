@@ -112,9 +112,9 @@ NIL means that no explicit level was supplied."
             (:copier nil))
   "A validated basic, indexed, or 24-bit terminal color.
 
-KIND is :BASIC, :INDEXED, or :RGB.  VALUE is a basic color name, an xterm
-palette index, or an RGB-TRIPLE.  FALLBACK is the basic color name used when
-a richer color is rendered for a basic terminal.  INDEXED-FALLBACK is the
+KIND is the keyword BASIC, INDEXED, or RGB.  VALUE is a basic color name, an
+xterm palette index, or an RGB-TRIPLE.  FALLBACK is the basic color name used
+when a richer color is rendered for a basic terminal.  INDEXED-FALLBACK is the
 xterm palette index used when an RGB color is rendered for an indexed
 terminal."
   (kind             :basic :type (member :basic :indexed :rgb) :read-only t)
