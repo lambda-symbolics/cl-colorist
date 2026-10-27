@@ -239,6 +239,8 @@
     (check-equal 5 (visible-length styled))
     (check-equal 6 (ansi-control-end styled 1))
     (check-equal nil (ansi-control-end styled 0))
+    (check-signals-error (lambda () (ansi-control-end styled (length styled)))
+                         :type 'text-index-error)
     (check-equal "leftright" (strip-ansi osc))
     (check-equal "leftlinkright" (strip-ansi st-osc))
     (check-equal "leftright" (strip-ansi dcs-with-bel))

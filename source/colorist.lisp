@@ -528,9 +528,10 @@ an operating-system command."
   (check-type string string)
   (check-type index (integer 0))
   (unless (< index (length string))
-    (error 'type-error
-           :datum index
-           :expected-type `(integer 0 ,(max 0 (1- (length string))))))
+    (error 'text-index-error
+           :datum         index
+           :expected-type `(integer 0 ,(max 0 (1- (length string))))
+           :text          string))
   (let ((code (char-code (char string index))))
     (cond ((char= (char string index) +escape-character+)
            (colorist--skip-escape string index))
@@ -603,3 +604,18 @@ the caller could have passed."))
              (format stream "A terminal style cannot be both ~{~(~A~)~^ and ~}."
                      (style-conflict-error-attributes condition))))
   (:documentation "A style requested text attributes that exclude each other."))
+
+(define-condition text-index-error (type-error)
+  ((text
+    :initarg       :text
+    :reader        text-index-error-text
+    :type          string
+    :documentation "The string the index was meant to point into."))
+  (:report (lambda (condition stream)
+             (format stream "Index ~S is outside a string of ~D characters."
+                     (type-error-datum condition)
+                     (length (text-index-error-text condition)))))
+  (:documentation
+   "An index given to an ANSI text function does not point at a character.
+
+The datum is the rejected index."))

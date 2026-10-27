@@ -48,7 +48,9 @@
    ;; Conditions
    #:color-type-error
    #:style-conflict-error
-   #:style-conflict-error-attributes)
+   #:style-conflict-error-attributes
+   #:text-index-error
+   #:text-index-error-text)
   (:documentation
    "Capability-aware ANSI colors, text styles and escape-free text parsing."))
 

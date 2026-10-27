@@ -23,6 +23,7 @@
                 #:style-conflict-error
                 #:style-conflict-error-attributes
                 #:terminal-color-level
+                #:text-index-error
                 #:visible-length)
   (:export #:run-tests))
 
