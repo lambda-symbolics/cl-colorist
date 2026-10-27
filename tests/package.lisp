@@ -25,6 +25,7 @@
                 #:terminal-color-level
                 #:text-index-error
                 #:visible-length)
-  (:export #:run-tests))
+  (:export #:run-tests)
+  (:documentation "Tests for cl-colorist, run through RUN-TESTS."))
 
 (in-package #:cl-colorist/tests)
