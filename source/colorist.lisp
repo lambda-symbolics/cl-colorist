@@ -198,19 +198,18 @@ FALLBACK may be a basic color name or the result of BASIC-COLOR."
 (defparameter +cube-levels+ '(0 95 135 175 215 255)
   "The channel values of the xterm-256 color cube, indices 16 to 231.")
 
-(defun colorist--distance (red green blue other-red other-green other-blue)
-  "Return the squared Euclidean distance between two sRGB triples."
-  (+ (expt (- red other-red) 2)
-     (expt (- green other-green) 2)
-     (expt (- blue other-blue) 2)))
+(defun colorist--distance (triple other-triple)
+  "Return the squared Euclidean distance between sRGB TRIPLE and OTHER-TRIPLE."
+  (loop for component in triple
+        for other-component in other-triple
+        sum (expt (- component other-component) 2)))
 
 (defun colorist--nearest-basic-color (red green blue)
   "Return the basic color name closest to an sRGB triple."
   (loop with best-name = :white
         with best-distance = nil
-        for (name other-red other-green other-blue) in +basic-color-values+
-        for distance = (colorist--distance red green blue
-                                           other-red other-green other-blue)
+        for (name . other-triple) in +basic-color-values+
+        for distance = (colorist--distance (list red green blue) other-triple)
         when (or (null best-distance) (< distance best-distance))
           do (setf best-name name
                    best-distance distance)
@@ -237,14 +236,14 @@ sixteen system colors are skipped because terminals redefine them."
          (green-position (colorist--nearest-cube-level green))
          (blue-position (colorist--nearest-cube-level blue))
          (cube-index (+ 16 (* 36 red-position) (* 6 green-position) blue-position))
-         (cube-distance (colorist--distance red green blue
-                                            (nth red-position +cube-levels+)
-                                            (nth green-position +cube-levels+)
-                                            (nth blue-position +cube-levels+)))
+         (cube-distance (colorist--distance (list red green blue)
+                                            (list (nth red-position +cube-levels+)
+                                                  (nth green-position +cube-levels+)
+                                                  (nth blue-position +cube-levels+))))
          (gray-step (max 0 (min 23 (round (- (/ (+ red green blue) 3) 8) 10))))
          (gray-value (+ 8 (* 10 gray-step)))
-         (gray-distance (colorist--distance red green blue
-                                            gray-value gray-value gray-value)))
+         (gray-distance (colorist--distance (list red green blue)
+                                            (list gray-value gray-value gray-value))))
     (if (< gray-distance cube-distance)
         (+ 232 gray-step)
         cube-index)))
