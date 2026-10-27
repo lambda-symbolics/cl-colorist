@@ -388,7 +388,7 @@ RGB-COLOR."
 FOREGROUND and BACKGROUND accept a basic color keyword or a COLOR object.
 BOLD and FAINT are mutually exclusive intensity requests."
   (when (and bold faint)
-    (error "A terminal style cannot be both bold and faint."))
+    (error 'style-conflict-error :attributes '(:bold :faint)))
   (style--create (and foreground (colorist--color foreground))
                  (and background (colorist--color background))
                  (not (null bold))
@@ -592,3 +592,14 @@ presentation has been removed."
 
 The datum is the rejected value and the expected type describes the values
 the caller could have passed."))
+
+(define-condition style-conflict-error (error)
+  ((attributes
+    :initarg       :attributes
+    :reader        style-conflict-error-attributes
+    :type          list
+    :documentation "The keywords of the text attributes requested together."))
+  (:report (lambda (condition stream)
+             (format stream "A terminal style cannot be both ~{~(~A~)~^ and ~}."
+                     (style-conflict-error-attributes condition))))
+  (:documentation "A style requested text attributes that exclude each other."))

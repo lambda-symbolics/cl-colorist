@@ -167,7 +167,12 @@
   (check-equal (concatenate 'string (escape-sequence "[31m") "error")
                (paint "error" :foreground :red :level :basic :reset nil))
   (check-equal "plain" (paint "plain" :foreground :red :level :none))
-  (check-signals-error (lambda () (make-style :bold t :faint t)))
+  (check-signals-error (lambda () (make-style :bold t :faint t))
+                       :type 'style-conflict-error)
+  (check-equal '(:bold :faint)
+               (handler-case (make-style :bold t :faint t)
+                 (style-conflict-error (condition)
+                   (style-conflict-error-attributes condition))))
   (check-signals-error (lambda () (make-style :foreground :orange))
                        :type 'color-type-error))
 

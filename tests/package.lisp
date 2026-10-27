@@ -20,6 +20,8 @@
                 #:rgb-color
                 #:sgr-sequence
                 #:strip-ansi
+                #:style-conflict-error
+                #:style-conflict-error-attributes
                 #:terminal-color-level
                 #:visible-length)
   (:export #:run-tests))

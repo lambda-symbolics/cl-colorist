@@ -46,7 +46,9 @@
    #:visible-length
 
    ;; Conditions
-   #:color-type-error)
+   #:color-type-error
+   #:style-conflict-error
+   #:style-conflict-error-attributes)
   (:documentation
    "Capability-aware ANSI colors, text styles and escape-free text parsing."))
 
