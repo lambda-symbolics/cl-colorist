@@ -33,7 +33,7 @@ true-color COLORTERM selects :TRUECOLOR.  A 256-color TERM or COLORTERM
 selects :INDEXED.  Other environments select :BASIC.  Supplying GETENV makes
 capability decisions straightforward to test or embed in an unusual
 environment."
-  (let ((no-color (funcall getenv "NO_COLOR"))
+  (let ((no-color  (funcall getenv "NO_COLOR"))
         (term      (funcall getenv "TERM"))
         (colorterm (funcall getenv "COLORTERM")))
     (cond ((not (null no-color))
@@ -118,7 +118,7 @@ when a richer color is rendered for a basic terminal.  INDEXED-FALLBACK is the
 xterm palette index used when an RGB color is rendered for an indexed
 terminal."
   (kind             :basic :type (member :basic :indexed :rgb) :read-only t)
-  (value            :white :type (or basic-color-name (integer 0 255) rgb-triple)
+  (value            :white     :type (or basic-color-name (integer 0 255) rgb-triple)
                     :read-only t)
   (fallback         nil :type (or null basic-color-name) :read-only t)
   (indexed-fallback nil :type (or null (integer 0 255)) :read-only t))
@@ -160,7 +160,7 @@ terminal."
          (color-value designator))
         (t
          (error 'color-type-error
-                :datum designator
+                :datum         designator
                 :expected-type '(or basic-color-name
                                     (satisfies colorist--basic-color-p))))))
 
@@ -232,18 +232,18 @@ FALLBACK may be a basic color name or the result of BASIC-COLOR."
 
 Both the 6x6x6 color cube and the 24-step gray ramp are candidates; the
 sixteen system colors are skipped because terminals redefine them."
-  (let* ((red-position (colorist--nearest-cube-level red))
+  (let* ((red-position   (colorist--nearest-cube-level red))
          (green-position (colorist--nearest-cube-level green))
-         (blue-position (colorist--nearest-cube-level blue))
-         (cube-index (+ 16 (* 36 red-position) (* 6 green-position) blue-position))
-         (cube-distance (colorist--distance (list red green blue)
-                                            (list (nth red-position +cube-levels+)
-                                                  (nth green-position +cube-levels+)
-                                                  (nth blue-position +cube-levels+))))
-         (gray-step (max 0 (min 23 (round (- (/ (+ red green blue) 3) 8) 10))))
-         (gray-value (+ 8 (* 10 gray-step)))
-         (gray-distance (colorist--distance (list red green blue)
-                                            (list gray-value gray-value gray-value))))
+         (blue-position  (colorist--nearest-cube-level blue))
+         (cube-index     (+ 16 (* 36 red-position) (* 6 green-position) blue-position))
+         (cube-distance  (colorist--distance (list red green blue)
+                                             (list (nth red-position +cube-levels+)
+                                                   (nth green-position +cube-levels+)
+                                                   (nth blue-position +cube-levels+))))
+         (gray-step      (max 0 (min 23 (round (- (/ (+ red green blue) 3) 8) 10))))
+         (gray-value     (+ 8 (* 10 gray-step)))
+         (gray-distance  (colorist--distance (list red green blue)
+                                             (list gray-value gray-value gray-value))))
     (if (< gray-distance cube-distance)
         (+ 232 gray-step)
         cube-index)))
@@ -283,7 +283,7 @@ RGB-COLOR."
                                            0)))
                  (every (lambda (character) (digit-char-p character 16)) digits))
       (error 'color-type-error
-             :datum string
+             :datum         string
              :expected-type '(satisfies colorist--hex-color-string-p)))
     (rgb-color (parse-integer digits :start 0 :end 2 :radix 16)
                (parse-integer digits :start 2 :end 4 :radix 16)
@@ -306,7 +306,7 @@ RGB-COLOR."
          (basic-color designator))
         (t
          (error 'color-type-error
-                :datum designator
+                :datum         designator
                 :expected-type '(or color basic-color-name)))))
 
 (defun colorist--basic-color-index (name)
@@ -460,11 +460,11 @@ unchanged when styling is disabled or STYLE has no effective attributes."
   (colorize text
             (make-style :foreground foreground
                         :background background
-                        :bold bold
-                        :faint faint
-                        :italic italic
-                        :underline underline
-                        :reverse reverse)
+                        :bold       bold
+                        :faint      faint
+                        :italic     italic
+                        :underline  underline
+                        :reverse    reverse)
             :level level
             :reset reset))
 

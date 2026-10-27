@@ -83,7 +83,7 @@
 (defun test-rgb-colors ()
   "Check 24-bit colors, derived and explicit fallbacks, and hex parsing."
   (let ((yellow (hex-color "#fce04d"))
-        (blue (hex-color "193cb8")))
+        (blue   (hex-color "193cb8")))
     (check-equal :rgb (color-kind yellow))
     (check-equal '(252 224 77) (color-value yellow))
     (check-equal 221 (color-indexed-fallback yellow))
@@ -112,10 +112,10 @@
                              :level :truecolor))
   (let ((explicit (rgb-color 25 60 184
                              :fallback (indexed-color 19 :fallback :bright-blue)))
-        (named (rgb-color 1 2 3 :fallback :red))
-        (gray (rgb-color 128 128 128))
-        (black (rgb-color 0 0 0))
-        (white (rgb-color 255 255 255)))
+        (named    (rgb-color 1 2 3 :fallback :red))
+        (gray     (rgb-color 128 128 128))
+        (black    (rgb-color 0 0 0))
+        (white    (rgb-color 255 255 255)))
     (check-equal 19 (color-indexed-fallback explicit))
     (check-equal :bright-blue (color-fallback explicit))
     (check-equal 16 (color-indexed-fallback named))
@@ -146,10 +146,10 @@
   (check-equal (escape-sequence "[1;3;4;7;96;40m")
                (sgr-sequence (make-style :foreground :bright-cyan
                                          :background :black
-                                         :bold t
-                                         :italic t
-                                         :underline t
-                                         :reverse t)
+                                         :bold       t
+                                         :italic     t
+                                         :underline  t
+                                         :reverse    t)
                              :level :basic))
   (check-equal (escape-sequence "[2m")
                (sgr-sequence (make-style :faint t) :level :basic))
@@ -216,16 +216,16 @@
 
 (defun test-ansi-parsing ()
   "Check stripping and visible counting for common ANSI forms."
-  (let* ((escape (code-char 27))
-         (styled (concatenate 'string
-                              "a"
-                              (escape-sequence "[31m")
-                              "red"
-                              (escape-sequence "[0m")
-                              "b"))
-         (osc (format nil "left~c]0;title~cright" escape (code-char 7)))
-         (st-osc (format nil "left~c]8;;https://example.com~c\\link~c]8;;~c\\right"
-                         escape escape escape escape))
+  (let* ((escape  (code-char 27))
+         (styled  (concatenate 'string
+                               "a"
+                               (escape-sequence "[31m")
+                               "red"
+                               (escape-sequence "[0m")
+                               "b"))
+         (osc     (format nil "left~c]0;title~cright" escape (code-char 7)))
+         (st-osc  (format nil "left~c]8;;https://example.com~c\\link~c]8;;~c\\right"
+                          escape escape escape escape))
          (dcs-with-bel
            (format nil "left~cPqhidden~cstill-hidden~c\\right"
                    escape (code-char 7) escape))
@@ -234,7 +234,7 @@
          (canceled-csi
            (format nil "left~c[31~cvisible" escape (code-char #x1a)))
          (charset (format nil "a~c(Bb" escape))
-         (c1-csi (format nil "a~c31mb" (code-char #x9b))))
+         (c1-csi  (format nil "a~c31mb" (code-char #x9b))))
     (check-equal "aredb" (strip-ansi styled))
     (check-equal 5 (visible-length styled))
     (check-equal 6 (ansi-control-end styled 1))
