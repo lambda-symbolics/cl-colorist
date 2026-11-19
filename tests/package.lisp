@@ -26,6 +26,6 @@
                 #:text-index-error
                 #:visible-length)
   (:export #:run-tests)
-  (:documentation "Tests for cl-colorist, run through RUN-TESTS."))
+  (:documentation "Tests for cl-colorist."))
 
 (in-package #:cl-colorist/tests)

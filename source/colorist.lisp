@@ -6,11 +6,11 @@
 ;;;; -- Capabilities --
 
 (deftype color-level ()
-  "The amount of ANSI color understood by a terminal, in increasing order."
+  "The amount of ANSI color understood by a terminal."
   '(member :none :basic :indexed :truecolor))
 
 (defparameter *color-level* nil
-  "Color-level override, or NIL to inspect the process environment.")
+  "Color-level override, use NIL to make colorist inspect the process environment.")
 
 (defun colorist--getenv (name)
   "Return environment variable NAME without requiring an environment library."
@@ -21,7 +21,7 @@
       (funcall symbol name))))
 
 (defun colorist--contains-p (needle haystack)
-  "Return true when HAYSTACK contains NEEDLE without regard to case."
+  "Return true when HAYSTACK contains NEEDLE, case insensitive."
   (and haystack
        (not (null (search needle haystack :test #'char-equal)))))
 
@@ -61,7 +61,7 @@ NIL means that no explicit level was supplied."
 ;;;; -- Colors --
 
 (deftype basic-color-name ()
-  "A named color from the basic 16-color ANSI palette."
+  "A color from the basic 16-color ANSI palette."
   '(member :black
            :red
            :green
