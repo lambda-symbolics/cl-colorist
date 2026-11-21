@@ -42,6 +42,9 @@
 
    ;; ANSI-aware text
    #:ansi-control-end
+   #:ansi-parser
+   #:make-ansi-parser
+   #:ansi-parser-accept-p
    #:strip-ansi
    #:visible-length
 

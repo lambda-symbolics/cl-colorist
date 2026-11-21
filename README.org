@@ -91,6 +91,21 @@ dynamic override.
 - =colorist:ansi-control-end= exposes the same parser to renderers that keep
   controls while slicing visible text
 
+For incremental input, create a parser with =colorist:make-ansi-parser=.
+Pass each character to =colorist:ansi-parser-accept-p= and copy it when the
+result is true. Reuse the parser across writes, including writes that split
+control sequences. Only the parser state is retained, not control payloads.
+Apply any C0 or DEL filtering separately.
+
+#+begin_src lisp
+(let ((parser (colorist:make-ansi-parser)))
+  (with-output-to-string (output)
+    (dolist (chunk chunks)
+      (loop for character across chunk
+            when (colorist:ansi-parser-accept-p parser character)
+              do (write-char character output)))))
+#+end_src
+
 * Development
 
 #+begin_src sh

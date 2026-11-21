@@ -3,6 +3,8 @@
   (:import-from #:cl-colorist
                 #:*color-level*
                 #:ansi-control-end
+                #:ansi-parser-accept-p
+                #:make-ansi-parser
                 #:basic-color
                 #:basic-color-names
                 #:color-fallback

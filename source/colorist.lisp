@@ -474,54 +474,68 @@ unchanged when styling is disabled or STYLE has no effective attributes."
 (defparameter +escape-character+ (code-char 27)
   "The ASCII escape character.")
 
-(defun colorist--skip-csi (string start)
-  "Return the index after a CSI body in STRING beginning at START."
-  (loop for index from start below (length string)
-        for code = (char-code (char string index))
-        when (member code '(#x18 #x1a))
-          return (1+ index)
-        when (<= #x40 code #x7e)
-          return (1+ index)
-        finally (return (length string))))
+(defstruct (ansi-parser (:constructor make-ansi-parser ()))
+  "An incremental ANSI parser with constant storage and no retained control payloads."
+  (state nil :type (member nil :escape :escape-intermediate :csi
+                          :osc :osc-escape :string :string-escape)))
 
-(defun colorist--skip-control-string (string start bel-terminated-p)
-  "Return the index after a canceled or ST-terminated control string.
+(defun colorist--ansi-step (state character)
+  "Return the next STATE and whether CHARACTER is visible outside ANSI controls."
+  (let ((code (char-code character)))
+    (if state
+        (values
+         (ecase state
+           (:escape
+            (case character
+              (#\[
+               ':csi)
+              (#\]
+               ':osc)
+              ((#\P #\X #\^ #\_)
+               ':string)
+              (otherwise
+               (when (<= #x20 code #x2f) ':escape-intermediate))))
+           (:escape-intermediate
+            (when (<= #x20 code #x2f) ':escape-intermediate))
+           (:csi
+            (unless (or (member code '(#x18 #x1a)) (<= #x40 code #x7e)) ':csi))
+           ((:osc :osc-escape :string :string-escape)
+            (let ((osc-p (member state '(:osc :osc-escape))))
+              (cond
+                ((or (member code '(#x18 #x1a #x9c))
+                     (and osc-p (= code 7))
+                     (and (member state '(:osc-escape :string-escape)) (char= character #\\)))
+                 nil)
+                ((char= character +escape-character+)
+                 (if osc-p ':osc-escape ':string-escape))
+                (t
+                 (if osc-p ':osc ':string))))))
+         nil)
+        (cond
+          ((char= character +escape-character+)
+           (values ':escape nil))
+          ((= code #x9b)
+           (values ':csi nil))
+          ((= code #x9d)
+           (values ':osc nil))
+          ((member code '(#x90 #x98 #x9e #x9f))
+           (values ':string nil))
+          ((<= #x80 code #x9f)
+           (values nil nil))
+          (t
+           (values nil t))))))
 
-When BEL-TERMINATED-P is true, BEL also terminates the string as permitted for
-an operating-system command."
-  (loop for index from start below (length string)
-        for character = (char string index)
-        for code = (char-code character)
-        when (member code '(#x18 #x1a))
-          return (1+ index)
-        when (and bel-terminated-p (= code 7))
-          return (1+ index)
-        when (= code #x9c)
-          return (1+ index)
-        when (and (char= character +escape-character+)
-                  (< (1+ index) (length string))
-                  (char= (char string (1+ index)) #\\))
-          return (+ index 2)
-        finally (return (length string))))
+(defun ansi-parser-accept-p (parser character)
+  "Consume CHARACTER in PARSER and return true when it is outside ANSI controls.
 
-(defun colorist--skip-escape (string start)
-  "Return the index after STRING's escape sequence beginning at START."
-  (let ((next (1+ start)))
-    (if (>= next (length string))
-        (length string)
-        (case (char string next)
-          (#\[
-           (colorist--skip-csi string (1+ next)))
-          (#\]
-           (colorist--skip-control-string string (1+ next) t))
-          ((#\P #\X #\^ #\_)
-           (colorist--skip-control-string string (1+ next) nil))
-          (otherwise
-           (loop with index = next
-                 while (and (< index (length string))
-                            (<= #x20 (char-code (char string index)) #x2f))
-                   do (incf index)
-                 finally (return (min (1+ index) (length string)))))))))
+Reuse PARSER across writes. C0 and DEL characters outside ANSI controls are
+accepted, so a caller can apply its own filtering policy."
+  (check-type parser ansi-parser)
+  (check-type character character)
+  (multiple-value-bind (state visible-p)
+      (colorist--ansi-step (ansi-parser-state parser) character)
+    (setf (ansi-parser-state parser) state)
+    visible-p))
 
 (defun ansi-control-end (string index)
   "Return the end of a control sequence at INDEX, or NIL for visible text."
@@ -532,19 +546,13 @@ an operating-system command."
            :datum         index
            :expected-type `(integer 0 ,(max 0 (1- (length string))))
            :text          string))
-  (let ((code (char-code (char string index))))
-    (cond ((char= (char string index) +escape-character+)
-           (colorist--skip-escape string index))
-          ((= code #x9b)
-           (colorist--skip-csi string (1+ index)))
-          ((= code #x9d)
-           (colorist--skip-control-string string (1+ index) t))
-          ((member code '(#x90 #x98 #x9e #x9f))
-           (colorist--skip-control-string string (1+ index) nil))
-          ((<= #x80 code #x9f)
-           (1+ index))
-          (t
-           nil))))
+  (multiple-value-bind (state visible-p) (colorist--ansi-step nil (char string index))
+    (unless visible-p
+      (loop with end = (1+ index)
+            while (and state (< end (length string)))
+            do (setf state (colorist--ansi-step state (char string end)))
+               (incf end)
+            finally (return end)))))
 
 (defun strip-ansi (string)
   "Remove ANSI CSI, control-string, C1 and ordinary escape sequences.

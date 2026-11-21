@@ -254,6 +254,69 @@
                  (visible-length
                   (paint "λx" :foreground :cyan :level :basic)))))
 
+(defun strip-ansi-chunks (chunks)
+  "Strip ANSI controls from CHUNKS with one parser across all writes."
+  (let ((parser (make-ansi-parser)))
+    (with-output-to-string (output)
+      (dolist (chunk chunks)
+        (loop for character across chunk
+              when (ansi-parser-accept-p parser character)
+                do (write-char character output))))))
+
+(defun test-incremental-ansi-parsing ()
+  "Check split controls against the whole-string parser and explicit expected text."
+  (let* ((escape (code-char 27))
+         (cases
+           (append
+            (list
+             (list (format nil "abcx~cz" (code-char 127))
+                   (list (format nil "a~c[31mb~c[0mc~cz" escape escape escape)
+                         (format nil "x~c~cy~c]title" (code-char 127) (code-char #x9b) escape)
+                         (string escape) "\\" "z"))
+             (list "abc"
+                   (list (format nil "a~c[" escape) "31" (format nil "mb~c[" escape) "0m" "c"))
+             (list "ab" (list "a" (string (code-char #x9b)) "y" "b"))
+             (list "leftlinkright"
+                   (list (format nil "left~c]8;;https://example.invalid" escape)
+                         (string escape) "\\link" (string escape) "]8;;"
+                         (string escape) "\\right"))
+             (list "leftright" (list (format nil "left~c]title" escape) (string (code-char 7)) "right"))
+             (list "leftright" (list (format nil "left~c]title~c" escape escape)
+                                     (string escape) "\\right"))
+             (list "ab" (list (format nil "a~c(" escape) "B" "b"))
+             (list "leftright" (list (format nil "left~c[31" escape) (string (code-char #x18)) "right"))
+             (list "leftright" (list (format nil "left~c]title" escape) (string (code-char #x1a)) "right"))
+             (list "left" (list (format nil "left~c[" escape) "31"))
+             (list "left" (list (format nil "left~c]title" escape) (string escape)))
+             (list (format nil "a~c~c~cb" #\Newline #\Tab (code-char 127))
+                   (list "a" (format nil "~c~c~c" #\Newline #\Tab (code-char 127)) "b")))
+            (loop for introducer in '(#\P #\X #\^ #\_)
+                  collect (list "leftright"
+                                (list (format nil "left~c~cpayload" escape introducer)
+                                      (string (code-char 7)) "still-hidden"
+                                      (string escape) "\\right")))
+            (loop for code in '(#x90 #x98 #x9d #x9e #x9f)
+                  collect (list "leftright"
+                                (list (format nil "left~cpayload" (code-char code))
+                                      (string (code-char #x9c)) "right"))))))
+    (dolist (case cases)
+      (destructuring-bind (expected chunks) case
+        (check-equal expected (strip-ansi-chunks chunks))
+        (check-equal expected (strip-ansi (apply #'concatenate 'string chunks))))))
+  (let ((parser (make-ansi-parser)))
+    (check-equal nil (ansi-parser-accept-p parser (code-char 27)))
+    (check-equal nil (ansi-parser-accept-p parser #\P))
+    (check-equal 0 (loop repeat 100000 count (ansi-parser-accept-p parser #\a)))
+    (check-equal nil (ansi-parser-accept-p parser (code-char 27)))
+    (check-equal nil (ansi-parser-accept-p parser #\\))
+    (check-equal t (ansi-parser-accept-p parser #\x)))
+  (let ((first  (make-ansi-parser))
+        (second (make-ansi-parser)))
+    (ansi-parser-accept-p first (code-char #x9b))
+    (check-equal t (ansi-parser-accept-p second #\x))
+    (check-equal nil (ansi-parser-accept-p first #\y))
+    (check-equal t (ansi-parser-accept-p first #\x))))
+
 (defun run-tests ()
   "Run the cl-colorist test suite and return true on success."
   (setf *check-count* 0)
@@ -263,5 +326,6 @@
   (test-style-rendering)
   (test-color-levels)
   (test-ansi-parsing)
+  (test-incremental-ansi-parsing)
   (format t "~&~:d cl-colorist checks passed.~%" *check-count*)
   t)
